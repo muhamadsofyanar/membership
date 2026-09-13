@@ -15,9 +15,7 @@ async function allowed(userId: string, lessonId: string) {
                 some: {
                   userId,
                   status: "ACTIVE",
-                  endsAt: {
-                    gt: new Date(),
-                  },
+                  endsAt: { gt: new Date() },
                 },
               },
             },
@@ -38,26 +36,13 @@ export async function POST(
   const { lessonId } = await params;
 
   if (!(await allowed(user.id, lessonId))) {
-    return NextResponse.json(
-      { error: "Akses ditolak." },
-      { status: 403 }
-    );
+    return NextResponse.json({ error: "Akses ditolak." }, { status: 403 });
   }
 
   await db.lessonProgress.upsert({
-    where: {
-      userId_lessonId: {
-        userId: user.id,
-        lessonId,
-      },
-    },
-    update: {
-      completedAt: new Date(),
-    },
-    create: {
-      userId: user.id,
-      lessonId,
-    },
+    where: { userId_lessonId: { userId: user.id, lessonId } },
+    update: { completedAt: new Date() },
+    create: { userId: user.id, lessonId },
   });
 
   return NextResponse.json({ ok: true });
@@ -71,10 +56,7 @@ export async function DELETE(
   const { lessonId } = await params;
 
   await db.lessonProgress.deleteMany({
-    where: {
-      userId: user.id,
-      lessonId,
-    },
+    where: { userId: user.id, lessonId },
   });
 
   return NextResponse.json({ ok: true });
