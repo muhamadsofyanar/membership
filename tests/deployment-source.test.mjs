@@ -18,6 +18,11 @@ test("runtime image contains the Prisma CLI used at startup", () => {
   assert.match(source, /\.\/node_modules\/\.bin\/prisma db push/);
 });
 
+test("builder creates the public directory when Git omits the empty folder", () => {
+  const source = read("Dockerfile");
+  assert.match(source, /RUN mkdir -p public && npm run build/);
+});
+
 test("authentication pages do not rely on useSearchParams during prerender", () => {
   const form = read("components/AuthForm.tsx");
   assert.doesNotMatch(form, /useSearchParams/);
