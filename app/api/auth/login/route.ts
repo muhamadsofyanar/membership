@@ -1,0 +1,3 @@
+import { NextResponse } from "next/server"; import bcrypt from "bcryptjs"; import { z } from "zod"; import { db } from "@/lib/db"; import { createSession } from "@/lib/auth";
+const schema=z.object({email:z.string().trim().toLowerCase().email(),password:z.string().min(1)});
+export async function POST(req:Request){try{const data=schema.parse(await req.json());const user=await db.user.findUnique({where:{email:data.email}});if(!user||!await bcrypt.compare(data.password,user.passwordHash))return NextResponse.json({error:"Email atau password salah."},{status:401});await createSession(user.id);return NextResponse.json({ok:true,redirect:user.role==="ADMIN"?"/admin":"/dashboard"});}catch{return NextResponse.json({error:"Data login tidak valid."},{status:400})}}
