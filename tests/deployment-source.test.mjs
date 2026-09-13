@@ -17,3 +17,13 @@ test("runtime image contains the Prisma CLI used at startup", () => {
   );
   assert.match(source, /\.\/node_modules\/\.bin\/prisma db push/);
 });
+
+test("authentication pages do not rely on useSearchParams during prerender", () => {
+  const form = read("components/AuthForm.tsx");
+  assert.doesNotMatch(form, /useSearchParams/);
+});
+
+test("database-backed routes are explicitly rendered at request time", () => {
+  const layout = read("app/layout.tsx");
+  assert.match(layout, /export const dynamic = "force-dynamic";/);
+});

@@ -1,9 +1,15 @@
 "use client";
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 
-export function AuthForm({ mode }: { mode: "login" | "register" }) {
-  const router = useRouter(); const params = useSearchParams();
+type AuthFormProps = {
+  mode: "login" | "register";
+  refCode?: string;
+  planSlug?: string;
+};
+
+export function AuthForm({ mode, refCode = "", planSlug = "" }: AuthFormProps) {
+  const router = useRouter();
   const [error,setError]=useState(""); const [loading,setLoading]=useState(false);
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault(); setLoading(true); setError("");
@@ -17,8 +23,8 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
     {mode==="register"&&<><div className="field"><label>Nama lengkap</label><input name="name" required minLength={3} placeholder="Nama Anda"/></div><div className="field"><label>Nomor WhatsApp</label><input name="phone" required placeholder="62812..."/></div></>}
     <div className="field"><label>Email</label><input name="email" type="email" required placeholder="nama@email.com"/></div>
     <div className="field"><label>Password</label><input name="password" type="password" required minLength={8} placeholder="Minimal 8 karakter"/></div>
-    {mode==="register"&&<input type="hidden" name="ref" value={params.get("ref")||""}/>} 
-    {mode==="register"&&<input type="hidden" name="plan" value={params.get("plan")||""}/>} 
+    {mode==="register"&&<input type="hidden" name="ref" value={refCode}/>} 
+    {mode==="register"&&<input type="hidden" name="plan" value={planSlug}/>} 
     <button className="btn btn-primary btn-block" disabled={loading}>{loading?"Memproses...":mode==="login"?"Masuk ke Dashboard":"Buat Akun Gratis"}</button>
   </form>
 }

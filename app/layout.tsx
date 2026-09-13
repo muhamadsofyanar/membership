@@ -3,6 +3,8 @@ import Link from "next/link";
 import { getSessionUser } from "@/lib/auth";
 import "./globals.css";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "RizqHub | Belajar, Bertumbuh, Berpenghasilan",
   description: "Platform membership, LMS, dan affiliate untuk bertumbuh bersama.",
