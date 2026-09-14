@@ -32,6 +32,36 @@ enum CommissionStatus {
   CANCELLED
 }
 
+enum ProductType {
+  EBOOK
+  TEMPLATE
+  COURSE
+  MEMBERSHIP
+  BUNDLE
+}
+
+enum ProductStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum DiscountType {
+  PERCENT
+  FIXED
+}
+
+enum OrderItemSource {
+  MAIN
+  BUMP
+}
+
+enum GrantKind {
+  ASSET
+  COURSE
+  PLAN
+}
+
 model User {
   id                 String       @id @default(cuid())
   name               String
@@ -52,6 +82,7 @@ model User {
   earnedCommissions  Commission[] @relation("AffiliateCommissions")
   sourceCommissions  Commission[] @relation("SourceCommissions")
   lessonProgress     LessonProgress[]
+  entitlements       Entitlement[]
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
 }
@@ -70,6 +101,7 @@ model Plan {
   orders              Order[]
   memberships         Membership[]
   courses             Course[]    @relation("PlanCourses")
+  legacyProduct      Product?
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt
 }
@@ -83,6 +115,7 @@ model Course {
   isPublished        Boolean      @default(false)
   plans              Plan[]       @relation("PlanCourses")
   modules            Module[]
+  productOwners      Product[]
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
 }
@@ -129,9 +162,11 @@ model Order {
   invoice            String       @unique
   userId             String
   user               User         @relation(fields: [userId], references: [id])
-  planId             String
-  plan               Plan         @relation(fields: [planId], references: [id])
-  amount             Int
+  planId             String?
+  plan               Plan?        @relation(fields: [planId], references: [id])
+  amount             Int?
+  subtotal           Int?
+  discountTotal      Int?
   durationDaysSnapshot Int?
   affiliatePercentSnapshot Int?
   status             OrderStatus  @default(PENDING)
@@ -141,12 +176,20 @@ model Order {
   notes              String?
   paidAt             DateTime?
   reviewedAt         DateTime?
+  expiresAt          DateTime?
+  proofSubmittedAt   DateTime?
+  idempotencyKey     String?      @unique
+  legacy             Boolean      @default(false)
   membership         Membership?
   commission         Commission?
+  items              OrderItem[]
+  grants             OrderGrant[]
+  couponReservation  CouponReservation?
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
 
   @@index([userId, status])
+  @@index([expiresAt, status])
 }
 
 model Membership {
@@ -225,4 +268,160 @@ model RateLimit {
   hits Int @default(1)
   expiresAt DateTime
   @@index([expiresAt])
+}
+
+model Product {
+  id                String        @id @default(cuid())
+  slug              String        @unique
+  type              ProductType
+  status            ProductStatus @default(DRAFT)
+  name              String
+  description       String
+  price             Int
+  affiliatePercent  Int           @default(20)
+  thumbnail         String?
+  features          Json          @default("[]")
+  faq               Json          @default("[]")
+  legacyPlanId      String?       @unique
+  plan              Plan?         @relation(fields: [legacyPlanId], references: [id])
+  courseId          String?
+  course            Course?       @relation(fields: [courseId], references: [id])
+  assets            ProductAsset[]
+  bundleOf          BundleItem[]  @relation("BundleComponents")
+  partOfBundle      BundleItem[]  @relation("BundleMember")
+  bumps             ProductBump[] @relation("ProductMain")
+  bumpsOffer        ProductBump?  @relation("ProductBumpOffer")
+  couponRestricted  CouponProduct[]
+  orderItems        OrderItem[]
+  grants            OrderGrant[]
+  entitlements      Entitlement[]
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@index([status, type])
+}
+
+model ProductAsset {
+  id           String   @id @default(cuid())
+  productId    String
+  product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  originalName String
+  mime         String
+  size         Int
+  storageKey   String   @unique
+  createdAt    DateTime @default(now())
+
+  @@index([productId])
+}
+
+model BundleItem {
+  id              String  @id @default(cuid())
+  bundleId        String
+  bundle          Product @relation("BundleComponents", fields: [bundleId], references: [id], onDelete: Cascade)
+  componentId     String
+  component       Product @relation("BundleMember", fields: [componentId], references: [id], onDelete: Cascade)
+  position        Int     @default(0)
+  createdAt       DateTime @default(now())
+
+  @@unique([bundleId, componentId])
+  @@index([bundleId])
+}
+
+model ProductBump {
+  id         String  @id @default(cuid())
+  productId  String  @unique
+  product    Product @relation("ProductMain", fields: [productId], references: [id], onDelete: Cascade)
+  bumpOfferId String @unique
+  bumpOffer  Product @relation("ProductBumpOffer", fields: [bumpOfferId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+}
+
+model Coupon {
+  id          String           @id @default(cuid())
+  code        String           @unique
+  type        DiscountType
+  value       Int
+  active      Boolean          @default(true)
+  maxUses     Int?
+  startAt     DateTime?
+  endAt       DateTime?
+  products    CouponProduct[]
+  reservations CouponReservation[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([active])
+}
+
+model CouponProduct {
+  couponId  String
+  productId String
+  coupon    Coupon  @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([couponId, productId])
+}
+
+model CouponReservation {
+  id         String   @id @default(cuid())
+  couponId   String
+  coupon     Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  orderId    String   @unique
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  usedAt     DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([couponId])
+}
+
+model OrderItem {
+  id                  String          @id @default(cuid())
+  orderId             String
+  order               Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  source              OrderItemSource @default(MAIN)
+  productSnapshotName String
+  productSnapshotType ProductType
+  productId           String?
+  product             Product?        @relation(fields: [productId], references: [id])
+  price               Int
+  discount            Int             @default(0)
+  netPrice            Int
+  affiliatePercent    Int             @default(0)
+  createdAt           DateTime        @default(now())
+
+  @@index([orderId])
+}
+
+model OrderGrant {
+  id                String    @id @default(cuid())
+  orderId           String
+  order             Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderItemId       String
+  kind              GrantKind
+  grantRefId        String
+  snapshotName      String
+  durationDays      Int?
+  productId         String?
+  product           Product?  @relation(fields: [productId], references: [id])
+  entitlement       Entitlement?
+  createdAt         DateTime  @default(now())
+
+  @@index([orderId])
+  @@index([kind, grantRefId])
+}
+
+model Entitlement {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderGrantId String   @unique
+  orderGrant  OrderGrant @relation(fields: [orderGrantId], references: [id])
+  kind        GrantKind
+  grantRefId  String
+  productId   String?
+  product     Product?  @relation(fields: [productId], references: [id])
+  createdAt   DateTime  @default(now())
+
+  @@unique([userId, kind, grantRefId])
+  @@index([userId])
 }

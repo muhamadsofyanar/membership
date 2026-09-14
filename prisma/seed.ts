@@ -59,6 +59,49 @@ async function main() {
     whatsapp_admin: "6281234567890",
   };
   for (const [key, value] of Object.entries(settings)) await prisma.setting.upsert({ where: { key }, update: {}, create: { key, value } });
+
+  await prisma.setting.upsert({ where: { key: "order_expiry_hours" }, update: {}, create: { key: "order_expiry_hours", value: "24" } });
+
+  const slugify = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  for (const plan of plans) {
+    const slug = `membership-${plan.slug}`;
+    await prisma.product.upsert({
+      where: { legacyPlanId: (await prisma.plan.findUnique({ where: { slug: plan.slug }, select: { id: true } }))?.id ?? "never-match" },
+      update: {},
+      create: {
+        slug,
+        type: "MEMBERSHIP",
+        status: "PUBLISHED",
+        name: `Paket ${plan.name}`,
+        description: plan.description,
+        price: plan.price,
+        features: plan.features as any,
+        faq: [],
+        affiliatePercent: plan.affiliatePercent,
+        legacyPlanId: (await prisma.plan.findUniqueOrThrow({ where: { slug: plan.slug } })).id,
+      },
+    });
+  }
+  {
+    const ebookSlug = "ebook-panduan-dasar-penjualan";
+    const existing = await prisma.product.findUnique({ where: { slug: ebookSlug } });
+    if (!existing) {
+      await prisma.product.create({
+        data: {
+          slug: ebookSlug,
+          type: "EBOOK",
+          status: "DRAFT",
+          name: "Panduan Dasar Penjualan Digital",
+          description: "E-book panduan membangun fondasi penjualan digital, mulai membuat penawaran, follow up, dan closing yang etis.",
+          price: 49000,
+          features: ["Checklist 10 langkah closing", "Template pesan follow up", "Contoh halaman penawaran"],
+          faq: [],
+          affiliatePercent: 25,
+        },
+      });
+    }
+  }
 }
+
 
 main().catch(error => { console.error(error.message); process.exitCode=1; }).finally(() => prisma.$disconnect());
