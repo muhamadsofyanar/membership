@@ -37,6 +37,10 @@ model User {
   name               String
   email              String       @unique
   phone              String?
+  sessionVersion     Int          @default(0)
+  isActive           Boolean      @default(true)
+  resetTokens        PasswordReset[]
+  payouts            Payout[]
   passwordHash       String
   role               Role         @default(MEMBER)
   referralCode       String       @unique
@@ -128,6 +132,8 @@ model Order {
   planId             String
   plan               Plan         @relation(fields: [planId], references: [id])
   amount             Int
+  durationDaysSnapshot Int?
+  affiliatePercentSnapshot Int?
   status             OrderStatus  @default(PENDING)
   paymentMethod      String       @default("BANK_TRANSFER")
   paymentProof       String?
@@ -170,10 +176,53 @@ model Commission {
   status             CommissionStatus @default(APPROVED)
   createdAt          DateTime         @default(now())
   paidAt             DateTime?
+  payoutId           String?
+  payout             Payout? @relation(fields: [payoutId], references: [id])
 }
 
 model Setting {
   key                String   @id
   value              String
   updatedAt          DateTime @updatedAt
+}
+
+model PasswordReset {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  @@index([userId])
+}
+
+enum PayoutStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PAID
+}
+model Payout {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  amount Int
+  bankName String
+  accountNumber String
+  accountName String
+  status PayoutStatus @default(PENDING)
+  reviewNote String?
+  transferReference String?
+  reviewedById String?
+  createdAt DateTime @default(now())
+  reviewedAt DateTime?
+  paidAt DateTime?
+  commissions Commission[]
+  @@index([userId, status])
+}
+model RateLimit {
+  key String @id
+  hits Int @default(1)
+  expiresAt DateTime
+  @@index([expiresAt])
 }

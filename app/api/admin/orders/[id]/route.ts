@@ -1,25 +1,18 @@
-import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/auth";
-import { db } from "@/lib/db";
-import { sendOrderNotification } from "@/lib/notify";
-
-export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  await requireAdmin();
-  const { id } = await params;
-  const { status } = await req.json();
-  if (!["PAID", "REJECTED"].includes(status)) return NextResponse.json({ error: "Status tidak valid." }, { status: 400 });
-  const order = await db.order.findUnique({ where: { id }, include: { user: true, plan: true } });
-  if (!order || order.status !== "PENDING") return NextResponse.json({ error: "Transaksi tidak dapat diproses." }, { status: 409 });
-  await db.$transaction(async (tx) => {
-    await tx.order.update({ where: { id }, data: { status, reviewedAt: new Date(), paidAt: status === "PAID" ? new Date() : null } });
-    if (status !== "PAID") return;
-    const previous = await tx.membership.findFirst({ where: { userId: order.userId, status: "ACTIVE", endsAt: { gt: new Date() } }, orderBy: { endsAt: "desc" } });
-    const startsAt = previous?.endsAt || new Date();
-    const endsAt = new Date(startsAt);
-    endsAt.setDate(endsAt.getDate() + order.plan.durationDays);
-    await tx.membership.create({ data: { userId: order.userId, planId: order.planId, orderId: order.id, startsAt, endsAt } });
-    if (order.user.referredById) await tx.commission.create({ data: { affiliateId: order.user.referredById, sourceUserId: order.userId, orderId: order.id, amount: Math.floor(order.amount * order.plan.affiliatePercent / 100), percent: order.plan.affiliatePercent, status: "APPROVED" } });
-  });
-  void sendOrderNotification({ to: order.user.phone || "", name: order.user.name, invoice: order.invoice, status });
-  return NextResponse.json({ ok: true });
-}
+import {z} from "zod";import {db} from "@/lib/db";import {handle,apiUser,ApiError} from "@/lib/api";import {membershipWindow} from "@/lib/business";import {sendOrderNotification} from "@/lib/notify";
+export async function PATCH(req:Request,{params}:{params:Promise<{id:string}>}){return handle(async()=>{
+ await apiUser(true);const {id}=await params;const {status}=z.object({status:z.enum(["PAID","REJECTED"])}).parse(await req.json());
+ const order=await db.$transaction(async tx=>{
+  const order=await tx.order.findUnique({where:{id},include:{user:true,plan:true}});
+  if(!order||order.status!=="PENDING")throw new ApiError("Transaksi tidak dapat diproses.",409);
+  const now=new Date();const changed=await tx.order.updateMany({where:{id,status:"PENDING"},data:{status,reviewedAt:now,paidAt:status==="PAID"?now:null}});
+  if(!changed.count)throw new ApiError("Transaksi sudah diproses.",409);
+  if(status==="PAID"){
+   const previous=await tx.membership.findFirst({where:{userId:order.userId,planId:order.planId,status:"ACTIVE",endsAt:{gt:now}},orderBy:{endsAt:"desc"}});
+   await tx.membership.create({data:{userId:order.userId,planId:order.planId,orderId:id,...membershipWindow(now,order.durationDaysSnapshot??order.plan.durationDays,previous?.endsAt)}});
+   const percent=order.affiliatePercentSnapshot??order.plan.affiliatePercent;
+   if(order.user.referredById&&order.user.referredById!==order.userId)await tx.commission.create({data:{affiliateId:order.user.referredById,sourceUserId:order.userId,orderId:id,amount:Math.floor(order.amount*percent/100),percent,status:"APPROVED"}});
+  }
+  return order;
+ },{isolationLevel:"Serializable"});
+ await sendOrderNotification({to:order.user.phone||"",name:order.user.name,invoice:order.invoice,status});return {ok:true};
+});}

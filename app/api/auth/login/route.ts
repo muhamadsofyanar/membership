@@ -1,3 +1,12 @@
-import { NextResponse } from "next/server"; import bcrypt from "bcryptjs"; import { z } from "zod"; import { db } from "@/lib/db"; import { createSession } from "@/lib/auth";
-const schema=z.object({email:z.string().trim().toLowerCase().email(),password:z.string().min(1)});
-export async function POST(req:Request){try{const data=schema.parse(await req.json());const user=await db.user.findUnique({where:{email:data.email}});if(!user||!await bcrypt.compare(data.password,user.passwordHash))return NextResponse.json({error:"Email atau password salah."},{status:401});await createSession(user.id);return NextResponse.json({ok:true,redirect:user.role==="ADMIN"?"/admin":"/dashboard"});}catch{return NextResponse.json({error:"Data login tidak valid."},{status:400})}}
+import bcrypt from "bcryptjs";
+import { z } from "zod";
+import { db } from "@/lib/db";
+import { createSession } from "@/lib/auth";
+import { handle, ApiError, rateLimit } from "@/lib/api";
+export async function POST(req:Request){return handle(async()=>{
+ const data=z.object({email:z.string().trim().toLowerCase().email(),password:z.string().min(1).max(200)}).parse(await req.json());
+ await rateLimit(`login:${data.email}`,10);
+ const user=await db.user.findUnique({where:{email:data.email}});
+ if(!user?.isActive||!await bcrypt.compare(data.password,user.passwordHash))throw new ApiError("Email atau password salah.",401);
+ await createSession(user.id);return {ok:true,redirect:user.role==="ADMIN"?"/admin":"/dashboard"};
+});}

@@ -4,13 +4,14 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
-  const email = process.env.ADMIN_EMAIL || "admin@rizqhub.id";
-  const password = process.env.ADMIN_PASSWORD || "Admin123!";
+  const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  if (!email || !process.env.ADMIN_PASSWORD || process.env.ADMIN_PASSWORD.length < 12 || Buffer.byteLength(process.env.ADMIN_PASSWORD) > 72) throw new Error("Set ADMIN_EMAIL and ADMIN_PASSWORD (12 characters minimum, 72 bytes maximum).");
+  const password = process.env.ADMIN_PASSWORD;
   const passwordHash = await bcrypt.hash(password, 12);
 
   await prisma.user.upsert({
     where: { email },
-    update: { role: Role.ADMIN },
+    update: {},
     create: { name: "Admin Rizqhub", email, passwordHash, role: Role.ADMIN, referralCode: "ADMIN01" },
   });
 
@@ -20,14 +21,14 @@ async function main() {
     { name: "Lifetime", slug: "lifetime", description: "Akses panjang tanpa perlu memperpanjang tiap bulan.", price: 999000, durationDays: 3650, affiliatePercent: 35, isPopular: false, features: ["Semua fitur Growth", "Akses 10 tahun", "Update materi", "Komisi 35%", "Sesi khusus member"] },
   ];
 
-  for (const plan of plans) await prisma.plan.upsert({ where: { slug: plan.slug }, update: plan, create: plan });
+  for (const plan of plans) await prisma.plan.upsert({ where: { slug: plan.slug }, update: {}, create: plan });
 
   const growth = await prisma.plan.findUniqueOrThrow({ where: { slug: "growth" } });
   const lifetime = await prisma.plan.findUniqueOrThrow({ where: { slug: "lifetime" } });
   const starter = await prisma.plan.findUniqueOrThrow({ where: { slug: "starter" } });
   const course = await prisma.course.upsert({
     where: { slug: "fondasi-bisnis-digital" },
-    update: { plans: { set: [{ id: starter.id }, { id: growth.id }, { id: lifetime.id }] } },
+    update: {},
     create: {
       title: "Fondasi Bisnis Digital",
       slug: "fondasi-bisnis-digital",
@@ -57,7 +58,7 @@ async function main() {
     bank_holder: "RIZQHUB INDONESIA",
     whatsapp_admin: "6281234567890",
   };
-  for (const [key, value] of Object.entries(settings)) await prisma.setting.upsert({ where: { key }, update: { value }, create: { key, value } });
+  for (const [key, value] of Object.entries(settings)) await prisma.setting.upsert({ where: { key }, update: {}, create: { key, value } });
 }
 
-main().finally(() => prisma.$disconnect());
+main().catch(error => { console.error(error.message); process.exitCode=1; }).finally(() => prisma.$disconnect());

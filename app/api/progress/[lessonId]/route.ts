@@ -6,22 +6,11 @@ async function allowed(userId: string, lessonId: string) {
   const lesson = await db.lesson.findFirst({
     where: {
       id: lessonId,
-      module: {
-        course: {
-          isPublished: true,
-          plans: {
-            some: {
-              memberships: {
-                some: {
-                  userId,
-                  status: "ACTIVE",
-                  endsAt: { gt: new Date() },
-                },
-              },
-            },
-          },
-        },
-      },
+      module: { course: { isPublished: true } },
+      OR: [
+        { isPreview: true },
+        { module: { course: { plans: { some: { memberships: { some: { userId, status: "ACTIVE", startsAt: { lte: new Date() }, endsAt: { gt: new Date() } } } } } } } },
+      ],
     },
   });
 
