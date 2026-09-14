@@ -108,8 +108,8 @@ Apa dilakukan script:
    - `NEXT_PUBLIC_APP_URL` — origin domain HTTPS penuh (misal `https://rizqhub.id`), tanpa trailing slash
    - `ADMIN_EMAIL` (opsional) — untuk seed admin default
    - `ADMIN_PASSWORD` (opsional) — default admin pada seed (min 12)
-   - SMTP (optional reset password): `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`
-   - Starsender WA (optional): `STARSENDER_APIKEY`, `STARSENDER_WA_NUMBERID`
+   - SMTP (optional reset password): `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`
+   - Starsender WA (optional): `STARSENDER_API_URL`, `STARSENDER_API_KEY`, `STARSENDER_DEVICE_ID`
 4. HTTPS aktifkan. `NEXT_PUBLIC_APP_URL` WAJIB sama persis domain final.
 5. Setelah hidup:
    - Apply skema (instalasi BARU BOLEH gunakan `prisma db push` sekali saja di DB KOSONG):
@@ -119,6 +119,13 @@ Apa dilakukan script:
    - Jalankan seed: `node --import tsx prisma/seed.ts`
    - Uji login admin. Buka Pengaturan → isi rekening bank.
    - Akses `/api/health` harus return OK.
+
+### Catatan routing Coolify
+
+- Arahkan domain ke service `app` pada port internal `3000`.
+- Compose memakai `expose: 3000`, sehingga port tidak dipublikasikan langsung ke host dan tidak bentrok dengan aplikasi lain.
+- Tunggu health check menjadi `healthy`. Endpoint yang diperiksa adalah `/api/health`.
+- Maintenance tidak dijalankan saat startup. Jadwalkan `node scripts/maintenance.mjs` sebagai cron terpisah agar kegagalan maintenance tidak mematikan web server.
 
 ---
 

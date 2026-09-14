@@ -21,6 +21,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
+RUN mkdir -p /app/storage/private && chown -R nextjs:nodejs /app/storage
 USER nextjs
 EXPOSE 3000
-CMD ["sh", "-c", "./node_modules/.bin/prisma db push && node scripts/maintenance.mjs && node server.js"]
+# Keep maintenance out of startup so a maintenance failure cannot stop the web server.
+CMD ["sh", "-c", "./node_modules/.bin/prisma db push && exec node server.js"]

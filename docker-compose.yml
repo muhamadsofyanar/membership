@@ -2,12 +2,14 @@ services:
   app:
     build: .
     restart: unless-stopped
-    ports:
-      - "3000:3000"
+    init: true
+    expose:
+      - "3000"
     environment:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/rizqhub?schema=public
       AUTH_SECRET: ${AUTH_SECRET}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+      PRIVATE_STORAGE_DIR: /app/storage/private
       ADMIN_EMAIL: ${ADMIN_EMAIL}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       SMTP_HOST: ${SMTP_HOST:-}
@@ -21,13 +23,15 @@ services:
       STARSENDER_DEVICE_ID: ${STARSENDER_DEVICE_ID:-}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 30s
-      timeout: 10s
-      start_period: 60s
-      retries: 3
+      interval: 15s
+      timeout: 5s
+      start_period: 90s
+      retries: 5
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      - private_storage:/app/storage/private
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -44,3 +48,4 @@ services:
       retries: 10
 volumes:
   postgres_data:
+  private_storage:

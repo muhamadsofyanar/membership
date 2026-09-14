@@ -16,6 +16,16 @@ test("runtime image contains the Prisma CLI used at startup", () => {
     /COPY --from=builder --chown=nextjs:nodejs \/app\/node_modules \.\/node_modules/
   );
   assert.match(source, /\.\/node_modules\/\.bin\/prisma db push/);
+  assert.match(source, /exec node server\.js/);
+  assert.doesNotMatch(source, /db push && node scripts\/maintenance\.mjs/);
+});
+
+test("Coolify compose exposes the app internally and persists private files", () => {
+  const source = read("docker-compose.yml");
+  assert.match(source, /expose:\s*\n\s*- "3000"/);
+  assert.doesNotMatch(source, /- "3000:3000"/);
+  assert.match(source, /private_storage:\/app\/storage\/private/);
+  assert.match(source, /PRIVATE_STORAGE_DIR: \/app\/storage\/private/);
 });
 
 test("builder creates the public directory when Git omits the empty folder", () => {
